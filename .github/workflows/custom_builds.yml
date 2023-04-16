@@ -1,0 +1,62 @@
+#Base on Windows Builds
+name: 🏁 Custom Builds
+on:
+  push:
+    branches:
+      - build
+
+env:
+  GODOT_BASE_BRANCH: build
+  SCONSFLAGS: verbose=yes warnings=extra werror=yes module_text_server_fb_enabled=yes precision=double
+  SCONS_CACHE_MSVC_CONFIG: true
+
+concurrency:
+  group: ci-${{github.actor}}-${{github.head_ref || github.run_number}}-${{github.ref}}-windows
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: "windows-latest"
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Editor (target=editor, tests=yes)
+            cache-name: windows-editor
+            target: editor
+            tests: true
+            sconsflags: debug_symbols=no vsproj=yes
+            bin: "./bin/godot.windows.editor.double.x86_64.exe"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Godot build cache
+        uses: ./.github/actions/godot-cache
+        with:
+          cache-name: ${{ matrix.cache-name }}
+        continue-on-error: true
+
+      - name: Setup python and scons
+        uses: ./.github/actions/godot-deps
+
+      - name: Setup MSVC problem matcher
+        uses: ammaraskar/msvc-problem-matcher@master
+
+      - name: Compilation
+        uses: ./.github/actions/godot-build
+        with:
+          sconsflags: ${{ env.SCONSFLAGS }} ${{ matrix.sconsflags }}
+          platform: windows
+          target: ${{ matrix.target }}
+          tests: ${{ matrix.tests }}
+
+      - name: Prepare artifact
+        run: |
+          Remove-Item bin/* -Include *.exp,*.lib,*.pdb -Force
+
+      - name: Upload artifact
+        uses: ./.github/actions/upload-artifact
+        with:
+          name: ${{ matrix.cache-name }}
