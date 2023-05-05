@@ -1,0 +1,16 @@
+dist: jammy
+addons:
+  apt:
+    packages:
+      - mingw-w64
+      - scons
+  artifacts:
+    working_dir: bin
+before_script:
+  - sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+  - sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+
+jobs:
+  include:
+    - stage: build
+      script: scons platform=windows precision=double
