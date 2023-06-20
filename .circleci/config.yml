@@ -2,22 +2,45 @@ version: 2.1
 
 jobs:
   build:
-    machine:
-      image: windows-server-2022-gui:current
-      resource_class: windows.large
-      shell: powershell.exe -ExecutionPolicy Bypass
+    macos:
+      xcode: "14.2.0"
+    resource_class: macos.x86.medium.gen2
     steps:
       - checkout
       - run:
-          name: Setup
+          name: Install Vulkan SDK
+          command: >
+                curl https://sdk.lunarg.com/sdk/download/1.3.250.0/mac/vulkansdk-macos-1.3.250.0.dmg -o ~/vulkansdk.dmg
+                && hdiutil attach ~/vulkansdk.dmg
+                && sudo /Volumes/VulkanSDK/InstallVulkan.app/Contents/MacOS/InstallVulkan --root ~/VulkanSDK --accept-licenses --default-answer --confirm-command install
+      - run:
+          name: Install scons
           command: python -m pip install scons
       - run:
-          name: Compile
-          command: scons platform=windows precision=double
+          name: Install Pyston
+          commond: python -m pip install pyston_lite_autoload
+      - run:
+          name: Compile for Intel
+          command: scons platform=macos arch=x86_64 precision=double vulkan_sdk_path=~/VulkanSDK
+      - run:
+          name: Compile for Apple Silicon
+          command: scons platform=macos arch=arm64 precision=double vulkan_sdk_path=~/VulkanSDK
+      - run:
+          name: Create universal binary
+          command: lipo -create bin/godot.macos.editor.double.x86_64 bin/godot.macos.editor.double.arm64 -output bin/godot.macos.tools.universal
+      - run:
+          name: Create .app
+          command: >
+                cp -r misc/dist/macos_tools.app bin/Godot.app
+                && mkdir -p bin/Godot.app/Contents/MacOS
+                && cp bin/godot.macos.opt.tools.universal bin/Godot.app/Contents/MacOS/Godot
+                && chmod +x bin/Godot.app/Contents/MacOS/Godot
+                && mkdir -p bin/Godot.app/Contents/Frameworks
+                && cp ~/VulkanSDK/macOS/lib/libMoltenVK.dylib bin/Godot.app/Contents/Frameworks/libMoltenVK.dylib
       - store_artifacts:
           path: bin
 
 workflows:
-  build-windows:
+  build-macos:
     jobs:
       - build
